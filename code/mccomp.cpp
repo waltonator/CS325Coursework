@@ -397,8 +397,120 @@ public:
   virtual std::string to_string() const {};
 };
 
+
+
+
+
+
+
+class stmtASTnode : public ASTnode {
+public:
+  stmtASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class baseValASTnode : public ASTnode {
+  std::string type;
+public:
+  baseValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class negValASTnode : public ASTnode {
+  TOKEN tok;
+  int tokCount;
+  std::unique_ptr<baseValASTnode> val;
+public:
+  negValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class mulValASTnode : public ASTnode {
+  std::unique_ptr<negValASTnode> left;
+  std::list<std::tuple<TOKEN, std::unique_ptr<negValASTnode>>> right;
+public:
+  mulValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class addValASTnode : public ASTnode {
+  std::unique_ptr<mulValASTnode> left;
+  std::list<std::tuple<TOKEN, std::unique_ptr<mulValASTnode>>> right;
+public:
+  addValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class ineqValASTnode : public ASTnode {
+  std::unique_ptr<addValASTnode> left;
+  std::list<std::tuple<TOKEN, std::unique_ptr<addValASTnode>>> right;
+public:
+  ineqValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class eqValASTnode : public ASTnode {
+  std::unique_ptr<ineqValASTnode> left;
+  std::list<std::tuple<TOKEN, std::unique_ptr<ineqValASTnode>>> right;
+public:
+  eqValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class andValASTnode : public ASTnode {
+  std::unique_ptr<eqValASTnode> left;
+  std::list<std::unique_ptr<eqValASTnode>> right;
+public:
+  andValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class orValASTnode : public ASTnode {
+  std::unique_ptr<andValASTnode> left;
+  std::list<std::unique_ptr<andValASTnode>> right;
+public:
+  orValASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class declASTnode : public ASTnode {
+public:
+  declASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class varDeclASTnode : public declASTnode {
+  TOKEN Tok;
+  std::string type;
+  std::string Name;
+public:
+  varDeclASTnode() {}
+  virtual Value *codegen() override;
+};
+
+
+class blockASTnode : public stmtASTnode {
+  std::list<std::unique_ptr<varDeclASTnode>> localDecls;
+  std::list<std::unique_ptr<stmtASTnode>> statments;
+public:
+  blockASTnode() {}
+  virtual Value *codegen() override;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 /// IntASTnode - Class for integer literals like 1, 2, 10,
-class IntASTnode : public ASTnode {
+class IntASTnode : public baseValASTnode {
   int Val;
   TOKEN Tok;
   std::string Name;
@@ -411,18 +523,153 @@ public:
   //};
 };
 
-/* add other AST nodes as nessasary */
+class FloatASTnode : public baseValASTnode {
+  float Val;
+  TOKEN Tok;
+  std::string Name;
 
+public:
+  FloatASTnode(TOKEN tok, float val) : Val(val), Tok(tok) {}
+  virtual Value *codegen() override;
+};
+
+class BoolASTnode : public baseValASTnode {
+  bool Val;
+  TOKEN Tok;
+  std::string Name;
+public:
+  BoolASTnode(TOKEN tok, bool val) : Val(val), Tok(tok) {}
+  virtual Value *codegen() override;
+};
+
+
+
+class exprASTnode : public stmtASTnode {
+  std::list<std::string> names;
+  std::unique_ptr<orValASTnode> val;
+public:
+  exprASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class subExprASTnode : baseValASTnode {
+  std::unique_ptr<exprASTnode> expresion;
+public:
+  subExprASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class funcCallASTnode : baseValASTnode {
+  std::string name;
+  std::list<std::unique_ptr<exprASTnode>> arguments;
+public:
+  funcCallASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class ifStmtASTnode : public stmtASTnode {
+  std::unique_ptr<exprASTnode> expresion;
+  std::unique_ptr<blockASTnode> block;
+  std::unique_ptr<blockASTnode> els;
+public:
+  ifStmtASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class whileStmtASTnode : public stmtASTnode {
+  std::unique_ptr<exprASTnode> expresion;
+  std::unique_ptr<stmtASTnode> statment;
+public:
+  whileStmtASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class returnStmtASTnode : public stmtASTnode {
+  std::unique_ptr<exprASTnode> expresion;
+public:
+  returnStmtASTnode() {}
+  virtual Value *codegen() override;
+};
+
+
+class paramASTnode : public ASTnode {
+  TOKEN Tok;
+  std::string type;
+  std::string Name;
+public:
+  paramASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class paramsASTnode : public ASTnode {
+  std::string type;
+public:
+  paramsASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class paramListASTnode : public paramsASTnode {
+  std::list <std::unique_ptr<paramASTnode>> paramaters;
+public:
+  paramListASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class voidParamASTnode : public paramsASTnode {
+  TOKEN Tok;
+public:
+  voidParamASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class externASTnode : public ASTnode {
+  TOKEN Tok;
+  std::string type;
+  std::string name;
+  std::unique_ptr<paramsASTnode> paramaters;
+public:
+  externASTnode() {}
+  virtual Value *codegen() override;
+};
+
+
+
+
+class funcDeclASTnode : public declASTnode {
+  TOKEN Tok;
+  std::string type;
+  std::string name;
+  std::unique_ptr<paramsASTnode> paramaters;
+  std::unique_ptr<blockASTnode> block;
+public:
+  funcDeclASTnode() {}
+  virtual Value *codegen() override;
+};
+
+class ProgramASTnode : public ASTnode {
+  std::list <std::unique_ptr<externASTnode>> externals;
+  std::list <std::unique_ptr<declASTnode>> declerations;
+public:
+  ProgramASTnode() {}
+  virtual Value *codegen() override;
+};
 //===----------------------------------------------------------------------===//
 // Recursive Descent Parser - Function call for each production
 //===----------------------------------------------------------------------===//
 
 /* Add function calls for each production */
 
+static std::unique_ptr<IntASTnode> parseInt() {
+
+}
+
 // program ::= extern_list decl_list
 static void parser() {
+
   // add body
 }
+
+
 
 //===----------------------------------------------------------------------===//
 // Code Generation
