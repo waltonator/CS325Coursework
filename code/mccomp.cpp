@@ -33,6 +33,10 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <sstream>
+
+#include "parser.hpp"
 
 using namespace llvm;
 using namespace llvm::sys;
@@ -393,7 +397,7 @@ static void putBackToken(TOKEN tok) { tok_buffer.push_front(tok); }
 class ASTnode {
 public:
   virtual ~ASTnode() {}
-  virtual Value *codegen() = 0;
+  //virtual Value *codegen() = 0;
   virtual std::string to_string() const {};
 };
 
@@ -406,14 +410,14 @@ public:
 class stmtASTnode : public ASTnode {
 public:
   stmtASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class baseValASTnode : public ASTnode {
   std::string type;
 public:
   baseValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class negValASTnode : public ASTnode {
@@ -422,7 +426,7 @@ class negValASTnode : public ASTnode {
   std::unique_ptr<baseValASTnode> val;
 public:
   negValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class mulValASTnode : public ASTnode {
@@ -430,7 +434,7 @@ class mulValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<negValASTnode>>> right;
 public:
   mulValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class addValASTnode : public ASTnode {
@@ -438,7 +442,7 @@ class addValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<mulValASTnode>>> right;
 public:
   addValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class ineqValASTnode : public ASTnode {
@@ -446,7 +450,7 @@ class ineqValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<addValASTnode>>> right;
 public:
   ineqValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class eqValASTnode : public ASTnode {
@@ -454,7 +458,7 @@ class eqValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<ineqValASTnode>>> right;
 public:
   eqValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class andValASTnode : public ASTnode {
@@ -462,7 +466,7 @@ class andValASTnode : public ASTnode {
   std::list<std::unique_ptr<eqValASTnode>> right;
 public:
   andValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class orValASTnode : public ASTnode {
@@ -470,13 +474,13 @@ class orValASTnode : public ASTnode {
   std::list<std::unique_ptr<andValASTnode>> right;
 public:
   orValASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class declASTnode : public ASTnode {
 public:
   declASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class varDeclASTnode : public declASTnode {
@@ -485,16 +489,15 @@ class varDeclASTnode : public declASTnode {
   std::string Name;
 public:
   varDeclASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
-
 
 class blockASTnode : public stmtASTnode {
   std::list<std::unique_ptr<varDeclASTnode>> localDecls;
   std::list<std::unique_ptr<stmtASTnode>> statments;
 public:
   blockASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 
@@ -517,7 +520,7 @@ class IntASTnode : public baseValASTnode {
 
 public:
   IntASTnode(TOKEN tok, int val) : Val(val), Tok(tok) {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
   // virtual std::string to_string() const override {
   // return a sting representation of this AST node
   //};
@@ -530,7 +533,7 @@ class FloatASTnode : public baseValASTnode {
 
 public:
   FloatASTnode(TOKEN tok, float val) : Val(val), Tok(tok) {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class BoolASTnode : public baseValASTnode {
@@ -539,7 +542,7 @@ class BoolASTnode : public baseValASTnode {
   std::string Name;
 public:
   BoolASTnode(TOKEN tok, bool val) : Val(val), Tok(tok) {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 
@@ -549,14 +552,14 @@ class exprASTnode : public stmtASTnode {
   std::unique_ptr<orValASTnode> val;
 public:
   exprASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class subExprASTnode : baseValASTnode {
   std::unique_ptr<exprASTnode> expresion;
 public:
   subExprASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class funcCallASTnode : baseValASTnode {
@@ -564,7 +567,7 @@ class funcCallASTnode : baseValASTnode {
   std::list<std::unique_ptr<exprASTnode>> arguments;
 public:
   funcCallASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class ifStmtASTnode : public stmtASTnode {
@@ -573,7 +576,7 @@ class ifStmtASTnode : public stmtASTnode {
   std::unique_ptr<blockASTnode> els;
 public:
   ifStmtASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class whileStmtASTnode : public stmtASTnode {
@@ -581,59 +584,56 @@ class whileStmtASTnode : public stmtASTnode {
   std::unique_ptr<stmtASTnode> statment;
 public:
   whileStmtASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class returnStmtASTnode : public stmtASTnode {
   std::unique_ptr<exprASTnode> expresion;
 public:
   returnStmtASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 
 class paramASTnode : public ASTnode {
   TOKEN Tok;
-  std::string type;
+  std::string Type;
   std::string Name;
 public:
-  paramASTnode() {}
-  virtual Value *codegen() override;
+  paramASTnode(TOKEN tok, std::string type, std::string name) : Tok(tok), Type(type), Name(name) {}
+  //virtual Value *codegen() override;
 };
 
 class paramsASTnode : public ASTnode {
   std::string type;
 public:
   paramsASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class paramListASTnode : public paramsASTnode {
   std::list <std::unique_ptr<paramASTnode>> paramaters;
 public:
-  paramListASTnode() {}
-  virtual Value *codegen() override;
+  paramListASTnode(std::list <std::unique_ptr<paramASTnode>> l) : paramaters(std::move(l)) {}
+  //virtual Value *codegen() override;
 };
 
 class voidParamASTnode : public paramsASTnode {
   TOKEN Tok;
 public:
-  voidParamASTnode() {}
-  virtual Value *codegen() override;
+  voidParamASTnode(TOKEN tok) : Tok(tok) {}
+  //virtual Value *codegen() override;
 };
 
 class externASTnode : public ASTnode {
   TOKEN Tok;
-  std::string type;
-  std::string name;
+  std::string Type;
+  std::string Name;
   std::unique_ptr<paramsASTnode> paramaters;
 public:
-  externASTnode() {}
-  virtual Value *codegen() override;
+  externASTnode(TOKEN tok, std::string type, std::string name, std::unique_ptr<paramsASTnode> param) : Tok(tok), Type(type), Name(name), paramaters(std::move(param)) {}
+  //virtual Value *codegen() override;
 };
-
-
-
 
 class funcDeclASTnode : public declASTnode {
   TOKEN Tok;
@@ -643,15 +643,15 @@ class funcDeclASTnode : public declASTnode {
   std::unique_ptr<blockASTnode> block;
 public:
   funcDeclASTnode() {}
-  virtual Value *codegen() override;
+  //virtual Value *codegen() override;
 };
 
 class ProgramASTnode : public ASTnode {
   std::list <std::unique_ptr<externASTnode>> externals;
   std::list <std::unique_ptr<declASTnode>> declerations;
 public:
-  ProgramASTnode() {}
-  virtual Value *codegen() override;
+  ProgramASTnode(std::list <std::unique_ptr<externASTnode>> externs, std::list <std::unique_ptr<declASTnode>> decls) : externals(std::move(externs)), declerations(std::move(decls)) {}
+  //virtual Value *codegen() override;
 };
 //===----------------------------------------------------------------------===//
 // Recursive Descent Parser - Function call for each production
@@ -659,13 +659,119 @@ public:
 
 /* Add function calls for each production */
 
-static std::unique_ptr<IntASTnode> parseInt() {
+static void exceptionString (TOKEN tok, std::list<std::string> expected) {
+  std::string ret = expected.back();
+  expected.pop_back();
+  while (expected.size() > 0){
+    ret = expected.back() + " or " + ret;
+    expected.pop_back();
+  }
+  std::stringstream ss;
+  std::string l;
+  ss << tok.lineNo;
+  l = ss.str();
+  std::string c;std::list <std::unique_ptr<externASTnode>> externs = {};
+  ss << tok.columnNo;
+  c = ss.str();
+  ret = "found " + tok.lexeme + " at line " + l + ", at column " + c + " when parser expected " + ret;
+  std::cerr << ret;
+  exit(1);
+}
 
+
+
+static bool isVarType(){
+  return (CurTok.type == INT_TOK || CurTok.type == FLOAT_TOK || CurTok.type == BOOL_TOK);
+}
+
+static std::unique_ptr<IntASTnode> parseInt() {
+  std::stringstream val(CurTok.lexeme);
+  int ival = 0;
+  val >> ival;
+  return make_unique<IntASTnode>(CurTok, ival);
+}
+
+static std::unique_ptr<FloatASTnode> parseFloat() {
+  std::stringstream val(CurTok.lexeme);
+  float ival = 0.0;
+  val >> ival;
+  return make_unique<FloatASTnode>(CurTok, ival);
+}
+
+static std::unique_ptr<BoolASTnode> parseBool() {
+  std::stringstream val(CurTok.lexeme);
+  bool ival = false;
+  val >> ival;
+  return make_unique<BoolASTnode>(CurTok, ival);
+}
+
+
+
+
+static std::unique_ptr<paramASTnode> parseParam() {
+  std::string type = CurTok.lexeme;
+  TOKEN tok = getNextToken();
+  return make_unique<paramASTnode>(tok, type, tok.lexeme);
+}
+
+static std::unique_ptr<externASTnode> parseExtern(){
+  std::string type = getNextToken().lexeme;
+  if (CurTok.type != VOID_TOK && !(isVarType())){
+    exceptionString(CurTok, {"int","float","bool","void"});
+  }
+  TOKEN tok = getNextToken();
+  std::string name = tok.lexeme;
+  if (tok.type != IDENT){
+    exceptionString(CurTok, {"an identifier"});
+  }
+  if (getNextToken().type != LPAR) {
+    exceptionString(CurTok, {"("});
+  }
+  std::unique_ptr<paramsASTnode> p;
+  if (getNextToken().type != RPAR){
+    if (CurTok.type == VOID_TOK) {
+      p = make_unique<voidParamASTnode>(CurTok);
+    } else if (isVarType()) {
+      //create param list
+      std::list <std::unique_ptr<paramASTnode>> params = {};
+      while (isVarType()) {
+        params.push_back(parseParam());
+        getNextToken();
+        if (CurTok.type != COMMA && CurTok.type != RPAR){
+          exceptionString(CurTok, {",", ")"});
+        }
+        getNextToken();
+      }
+      p = make_unique<paramListASTnode>(std::move(params));
+    } else {
+      exceptionString(CurTok, {"int","float","bool","void", ")"});
+    }
+  }
+  if (CurTok.type != SC) {
+    exceptionString(CurTok, {";"});
+  }
+  return make_unique<externASTnode>(tok, type, name, std::move(p));
+}
+
+
+static std::unique_ptr<ProgramASTnode> prog(){
+  if (CurTok.type != EXTERN && !(isVarType()) && CurTok.type != VOID_TOK){
+    exceptionString(CurTok, {"extern","int","float","bool","void"});
+  }
+  std::list <std::unique_ptr<externASTnode>> externs = {};
+  while (CurTok.type == EXTERN) {
+    externs.push_front(parseExtern());
+    getNextToken();
+  }
+  std::list <std::unique_ptr<declASTnode>> decls = {};
+
+  return make_unique<ProgramASTnode>(std::move(externs), std::move(decls));
 }
 
 // program ::= extern_list decl_list
 static void parser() {
-
+  //fseek(pFile, 0, SEEK_SET);
+  std::unique_ptr<ProgramASTnode> program = prog();
   // add body
 }
 
@@ -689,6 +795,11 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
+
+
+
+
+
 //===----------------------------------------------------------------------===//
 // Main driver code.
 //===----------------------------------------------------------------------===//
@@ -709,12 +820,12 @@ int main(int argc, char **argv) {
 
   // get the first token
   getNextToken();
-  while (CurTok.type != EOF_TOK) {
-    fprintf(stderr, "Token: %s with type %d\n", CurTok.lexeme.c_str(),
-            CurTok.type);
-    getNextToken();
-  }
-  fprintf(stderr, "Lexer Finished\n");
+  //while (CurTok.type != EOF_TOK) {
+    //fprintf(stderr, "Token: %s with type %d\n", CurTok.lexeme.c_str(),
+      //      CurTok.type);
+    //getNextToken();
+  //}
+  //fprintf(stderr, "Lexer Finished\n");
 
   // Make the module, which holds all the code.
   TheModule = llvm::make_unique<Module>("mini-c", TheContext);
