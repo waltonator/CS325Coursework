@@ -99,17 +99,17 @@ public:
 };
 
 class declASTnode : public ASTnode {
+  TOKEN Tok;
+  std::string Type;
+  std::string Name;
 public:
-  declASTnode() {}
+  declASTnode(TOKEN tok, std::string type, std::string name) : Tok(tok), Type(type), Name(name){}
   //virtual Value *codegen() override;
 };
 
 class varDeclASTnode : public declASTnode {
-  TOKEN Tok;
-  std::string type;
-  std::string Name;
 public:
-  varDeclASTnode() {}
+  varDeclASTnode(TOKEN tok, std::string type, std::string name) : declASTnode(tok, type, name) {}
   //virtual Value *codegen() override;
 };
 
@@ -117,7 +117,7 @@ class blockASTnode : public stmtASTnode {
   std::list<std::unique_ptr<varDeclASTnode>> localDecls;
   std::list<std::unique_ptr<stmtASTnode>> statments;
 public:
-  blockASTnode() {}
+  blockASTnode(std::list<std::unique_ptr<varDeclASTnode>> locals, std::list<std::unique_ptr<stmtASTnode>> stmts) : localDecls(std::move(locals)), statments(std::move(stmts)) {}
   //virtual Value *codegen() override;
 };
 
@@ -257,13 +257,10 @@ public:
 };
 
 class funcDeclASTnode : public declASTnode {
-  TOKEN Tok;
-  std::string type;
-  std::string name;
-  std::unique_ptr<paramsASTnode> paramaters;
-  std::unique_ptr<blockASTnode> block;
+  std::unique_ptr<paramsASTnode> Paramaters;
+  std::unique_ptr<blockASTnode> Block;
 public:
-  funcDeclASTnode() {}
+  funcDeclASTnode(TOKEN tok, std::string type, std::string name, std::unique_ptr<paramsASTnode> param, std::unique_ptr<blockASTnode> block) : Paramaters(std::move(param)), Block(std::move(block)), declASTnode(tok, type, name) {}
   //virtual Value *codegen() override;
 };
 

@@ -42,7 +42,11 @@ public:
   std::unique_ptr<FloatASTnode> parseFloat();
   std::unique_ptr<BoolASTnode> parseBool();
   std::unique_ptr<paramASTnode> parseParam();
+  std::unique_ptr<paramsASTnode> parseParams();
   std::unique_ptr<externASTnode> parseExtern();
+  std::unique_ptr<blockASTnode> parseBlock();
+  std::unique_ptr<funcDeclASTnode> parseFuncDecl(TOKEN tok, std::string type, std::string name);
+  std::unique_ptr<funcDeclASTnode> parseVoidFuncDecl();
   std::unique_ptr<declASTnode> parseDecl();
   std::unique_ptr<ProgramASTnode> prog();
 };
