@@ -38,12 +38,15 @@ public:
   parser(tokens *lexer) : t(lexer) {}
   void exceptionString (TOKEN tok, std::list<std::string> expected);
   bool isVarType();
+  bool isVal();
   std::unique_ptr<IntASTnode> parseInt();
   std::unique_ptr<FloatASTnode> parseFloat();
   std::unique_ptr<BoolASTnode> parseBool();
   std::unique_ptr<paramASTnode> parseParam();
   std::unique_ptr<paramsASTnode> parseParams();
   std::unique_ptr<externASTnode> parseExtern();
+  std::unique_ptr<varDeclASTnode> parseLocal();
+  std::unique_ptr<stmtASTnode> parseStatment();
   std::unique_ptr<blockASTnode> parseBlock();
   std::unique_ptr<funcDeclASTnode> parseFuncDecl(TOKEN tok, std::string type, std::string name);
   std::unique_ptr<funcDeclASTnode> parseVoidFuncDecl();

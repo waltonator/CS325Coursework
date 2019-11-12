@@ -29,8 +29,9 @@ public:
 
 
 class stmtASTnode : public ASTnode {
+  std::string stmtType;
 public:
-  stmtASTnode() {}
+  stmtASTnode(std::string st) : stmtType(st) {}
   //virtual Value *codegen() override;
 };
 
@@ -117,7 +118,7 @@ class blockASTnode : public stmtASTnode {
   std::list<std::unique_ptr<varDeclASTnode>> localDecls;
   std::list<std::unique_ptr<stmtASTnode>> statments;
 public:
-  blockASTnode(std::list<std::unique_ptr<varDeclASTnode>> locals, std::list<std::unique_ptr<stmtASTnode>> stmts) : localDecls(std::move(locals)), statments(std::move(stmts)) {}
+  blockASTnode(std::list<std::unique_ptr<varDeclASTnode>> locals, std::list<std::unique_ptr<stmtASTnode>> stmts) : localDecls(std::move(locals)), statments(std::move(stmts)), stmtASTnode("block") {}
   //virtual Value *codegen() override;
 };
 
@@ -172,7 +173,7 @@ class exprASTnode : public stmtASTnode {
   std::list<std::string> names;
   std::unique_ptr<orValASTnode> val;
 public:
-  exprASTnode() {}
+  exprASTnode() : stmtASTnode("expr") {}
   //virtual Value *codegen() override;
 };
 
@@ -196,7 +197,7 @@ class ifStmtASTnode : public stmtASTnode {
   std::unique_ptr<blockASTnode> block;
   std::unique_ptr<blockASTnode> els;
 public:
-  ifStmtASTnode() {}
+  ifStmtASTnode() : stmtASTnode("if") {}
   //virtual Value *codegen() override;
 };
 
@@ -204,14 +205,14 @@ class whileStmtASTnode : public stmtASTnode {
   std::unique_ptr<exprASTnode> expresion;
   std::unique_ptr<stmtASTnode> statment;
 public:
-  whileStmtASTnode() {}
+  whileStmtASTnode() : stmtASTnode("while") {}
   //virtual Value *codegen() override;
 };
 
 class returnStmtASTnode : public stmtASTnode {
   std::unique_ptr<exprASTnode> expresion;
 public:
-  returnStmtASTnode() {}
+  returnStmtASTnode() : stmtASTnode("return") {}
   //virtual Value *codegen() override;
 };
 

@@ -55,6 +55,10 @@
      return (t->CurTok.type == INT_TOK || t->CurTok.type == FLOAT_TOK || t->CurTok.type == BOOL_TOK);
    }
 
+   bool parser::isVal(){
+     return (t->CurTok.type == INT_LIT || t->CurTok.type == FLOAT_LIT || t->CurTok.type == BOOL_LIT);
+   }
+
 
    std::unique_ptr<IntASTnode> parser::parseInt() {
     std::stringstream val(t->CurTok.lexeme);
@@ -117,9 +121,33 @@
     return llvm::make_unique<externASTnode>(tok, type, name, std::move(p));
   }
 
+  std::unique_ptr<varDeclASTnode> parser::parseLocal() {
+    std::string type = t->CurTok.lexeme;
+    TOKEN tok = t->getNextToken();
+    std::string name = tok.lexeme;
+    if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
+    if (t->getNextToken().type != SC) exceptionString(t->CurTok, {";"});
+    return llvm::make_unique<varDeclASTnode>(tok, type, name);
+  }
+
+  std::unique_ptr<stmtASTnode> parser::parseStatment() {
+    if (t->CurTok.type == LBRA) return parseBlock();
+  }
+
   std::unique_ptr<blockASTnode> parser::parseBlock() {
     std::list <std::unique_ptr<varDeclASTnode>> locals = {};
+    t->getNextToken();
+    if ((t->CurTok.type != RBRA) && !(isVarType()) && (t->CurTok.type != RETURN) && (t->CurTok.type != LBRA) && (t->CurTok.type != WHILE) && (t->CurTok.type != IF) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != LPAR) && !(isVal()) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT)) exceptionString(t->CurTok, {";","{","}","int","float","bool","return","(","while","if","!","-","an identifier","a literal value"});
+    while (isVarType()){
+      locals.push_front(parseLocal());
+      t->getNextToken();
+    }
+    if ((t->CurTok.type != RBRA) && (t->CurTok.type != RETURN) && (t->CurTok.type != LBRA) && (t->CurTok.type != WHILE) && (t->CurTok.type != IF) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != LPAR) && !(isVal()) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT)) exceptionString(t->CurTok, {";","{","}","return","(","while","if","!","-","an identifier","a literal value"});
     std::list <std::unique_ptr<stmtASTnode>> stmts = {};
+    while ((t->CurTok.type == RETURN) || (t->CurTok.type == LBRA) || (t->CurTok.type == WHILE) || (t->CurTok.type == IF) || (t->CurTok.type == SC) || (t->CurTok.type == IDENT) || (t->CurTok.type == LPAR) || !(isVal()) || (t->CurTok.type == MINUS) || (t->CurTok.type == NOT)) {
+      stmts.push_front(parseStatment());
+      t->getNextToken();
+    }
     return llvm::make_unique<blockASTnode>(std::move(locals), std::move(stmts));
   }
 
@@ -147,6 +175,7 @@
       TOKEN tok = t->getNextToken();
       std::string name = tok.lexeme;
       if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
+      t->getNextToken();
       if ((t->CurTok.type != SC) && (t->CurTok.type != LPAR)) exceptionString(t->CurTok, {";","("});
       if (t->CurTok.type == SC) return llvm::make_unique<varDeclASTnode>(tok, type, name);
       else return parseFuncDecl(tok, type, name);
