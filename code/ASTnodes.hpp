@@ -202,10 +202,10 @@ public:
 };
 
 class whileStmtASTnode : public stmtASTnode {
-  std::unique_ptr<exprASTnode> expresion;
-  std::unique_ptr<stmtASTnode> statment;
+  std::unique_ptr<exprASTnode> Expresion;
+  std::unique_ptr<stmtASTnode> Statment;
 public:
-  whileStmtASTnode() : stmtASTnode("while") {}
+  whileStmtASTnode(std::unique_ptr<exprASTnode> expr, std::unique_ptr<stmtASTnode> stmt) : Expresion(expr), Statment(stmt), stmtASTnode("while") {}
   //virtual Value *codegen() override;
 };
 

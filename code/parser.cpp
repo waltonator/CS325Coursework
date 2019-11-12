@@ -130,8 +130,28 @@
     return llvm::make_unique<varDeclASTnode>(tok, type, name);
   }
 
+  std::unique_ptr<exprASTnode> parser::parseExpr() {
+
+  }
+
+  std::unique_ptr<ifStmtASTnode> parser::parseIf() {
+
+  }
+
+  std::unique_ptr<whileStmtASTnode> parser::parseWhile() {
+
+  }
+
+  std::unique_ptr<returnStmtASTnode> parser::parseReturn() {
+
+  }
+
   std::unique_ptr<stmtASTnode> parser::parseStatment() {
     if (t->CurTok.type == LBRA) return parseBlock();
+    else if (t->CurTok.type == IF) return parseIf();
+    else if (t->CurTok.type == WHILE) return parseWhile();
+    else if (t->CurTok.type == RETURN) return parseReturn();
+    else return parseExpr();
   }
 
   std::unique_ptr<blockASTnode> parser::parseBlock() {
@@ -155,7 +175,7 @@
     std::unique_ptr<paramsASTnode> p = parseParams();
     if (t->CurTok.type != LBRA) exceptionString(t->CurTok, {"{"});
     std::unique_ptr<blockASTnode> b = parseBlock();
-    if (t->CurTok.type != RBRA) exceptionString(t->CurTok, {"}"});
+    if (t->CurTok.type != RBRA) exceptionString(t->CurTok, {";","{","}","return","(","while","if","!","-","an identifier","a literal value"});
     return llvm::make_unique<funcDeclASTnode>(tok, type, name, std::move(p), std::move(b));
   }
 
