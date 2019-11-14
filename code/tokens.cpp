@@ -33,6 +33,7 @@ int lineNo, columnNo;
 /// lexer and updates CurTok with its results.
 
 TOKEN CurTok;
+TOKEN nextTok;
 std::deque<TOKEN> tok_buffer;
 
 TOKEN tokens::returnTok(std::string lexVal, int tok_type) {
