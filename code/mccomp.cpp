@@ -34,21 +34,12 @@
 #include <utility>
 #include <vector>
 
-//#include "token.hpp"
-//#include "ASTnodes.hpp"
 #include "parser.hpp"
 
 using namespace llvm;
 using namespace llvm::sys;
 
 parser* par;
-
-//static FILE *pFile;
-
-
-
-
-
 
 //===----------------------------------------------------------------------===//
 // Recursive Descent Parser - Function call for each production
@@ -57,16 +48,11 @@ parser* par;
 /* Add function calls for each production */
 
 
-
-
-
-// program ::= extern_list decl_list
 static void parse() {
-  //fseek(pFile, 0, SEEK_SET);
   std::unique_ptr<ProgramASTnode> program = par->prog();
+  llvm::outs() << program->to_string() <<"\n";
   // add body
 }
-
 
 
 //===----------------------------------------------------------------------===//
@@ -87,11 +73,6 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
-
-
-
-
-
 //===----------------------------------------------------------------------===//
 // Main driver code.
 //===----------------------------------------------------------------------===//
@@ -110,7 +91,6 @@ int main(int argc, char **argv) {
   lexer->lineNo = 1;
   lexer->columnNo = 1;
   par = new parser(lexer);
-  //par.t.pFile = pFile;
   // initialize line number and column numbers to zero
   par->t->lineNo = 1;
   par->t->columnNo = 1;
@@ -130,6 +110,7 @@ int main(int argc, char **argv) {
   // Run the parser now.
   parse();
   fprintf(stderr, "Parsing Finished\n");
+
 
   //********************* Start printing final IR **************************
   // Print out all of the generated code into a file called output.ll

@@ -26,69 +26,60 @@
 #include <string>
 #include <utility>
 
-//#include "token.hpp"
-//#include "tokens.cpp"
-//#include "ASTnodes.hpp"
 #include "parser.hpp"
 
-
-  void parser::exceptionString (TOKEN tok, std::list<std::string> expected) {
-    std::string ret = expected.back();
+void parser::exceptionString (TOKEN tok, std::list<std::string> expected) {
+  std::string ret = expected.back();
+  expected.pop_back();
+  while (expected.size() > 0){
+    ret = expected.back() + " or " + ret;
     expected.pop_back();
-    while (expected.size() > 0){
-      ret = expected.back() + " or " + ret;
-      expected.pop_back();
-    }
-    std::stringstream ss;
-    std::string l;
-    ss << tok.lineNo;
-    l = ss.str();
-    std::string c;
-    ss << tok.columnNo;
-    c = ss.str();
-    ret = "found " + tok.lexeme + " " + t->getNextToken().lexeme + " at line " + l + ", at column " + c + " when parser expected " + ret + "\n";
-    std::cerr << ret;
-    exit(1);
   }
+  std::stringstream ss;
+  std::string l;
+  ss << tok.lineNo;
+  l = ss.str();
+  std::string c;
+  ss << tok.columnNo;
+  c = ss.str();
+  ret = "found " + tok.lexeme + " " + t->getNextToken().lexeme + " at line " + l + ", at column " + c + " when parser expected " + ret + "\n";
+  std::cerr << ret;
+  exit(1);
+}
 
-  bool parser::isVarType(){
-     return (t->CurTok.type == INT_TOK || t->CurTok.type == FLOAT_TOK || t->CurTok.type == BOOL_TOK);
-   }
+bool parser::isVarType(){
+  return (t->CurTok.type == INT_TOK || t->CurTok.type == FLOAT_TOK || t->CurTok.type == BOOL_TOK);
+}
+bool parser::isVal(){
+  return (t->CurTok.type == INT_LIT || t->CurTok.type == FLOAT_LIT || t->CurTok.type == BOOL_LIT);
+}
 
-   bool parser::isVal(){
-     return (t->CurTok.type == INT_LIT || t->CurTok.type == FLOAT_LIT || t->CurTok.type == BOOL_LIT);
-   }
+std::unique_ptr<IntASTnode> parser::parseInt() {
+  std::stringstream val(t->CurTok.lexeme);
+  int ival = 0;
+  val >> ival;
+  TOKEN tok = t->CurTok;
+  t->getNextToken();
+  return llvm::make_unique<IntASTnode>(tok, ival);
+}
 
+std::unique_ptr<FloatASTnode> parser::parseFloat() {
+  std::stringstream val(t->CurTok.lexeme);
+  float ival = 0.0;
+  val >> ival;
+  TOKEN tok = t->CurTok;
+  t->getNextToken();
+  return llvm::make_unique<FloatASTnode>(tok, ival);
+}
 
-   std::unique_ptr<IntASTnode> parser::parseInt() {
-    std::stringstream val(t->CurTok.lexeme);
-    int ival = 0;
-    val >> ival;
-    TOKEN tok = t->CurTok;
-    t->getNextToken();
-    return llvm::make_unique<IntASTnode>(tok, ival);
-  }
-
-   std::unique_ptr<FloatASTnode> parser::parseFloat() {
-    std::stringstream val(t->CurTok.lexeme);
-    float ival = 0.0;
-    val >> ival;
-    TOKEN tok = t->CurTok;
-    t->getNextToken();
-    return llvm::make_unique<FloatASTnode>(tok, ival);
-  }
-
-  std::unique_ptr<BoolASTnode> parser::parseBool() {
-    std::stringstream val(t->CurTok.lexeme);
-    bool ival = false;
-    val >> ival;
-    TOKEN tok = t->CurTok;
-    t->getNextToken();
-    return llvm::make_unique<BoolASTnode>(tok, ival);
-  }
-
-
-
+std::unique_ptr<BoolASTnode> parser::parseBool() {
+  std::stringstream val(t->CurTok.lexeme);
+  bool ival = false;
+  val >> ival;
+  TOKEN tok = t->CurTok;
+  t->getNextToken();
+  return llvm::make_unique<BoolASTnode>(tok, ival);
+}
 
    std::unique_ptr<paramASTnode> parser::parseParam() {
     std::string type = t->CurTok.lexeme;
@@ -100,8 +91,11 @@
     if (t->CurTok.type != LPAR) exceptionString(t->CurTok, {"("});
     std::unique_ptr<paramsASTnode> p;
     if (t->getNextToken().type != RPAR){
-      if (t->CurTok.type == VOID_TOK) p = llvm::make_unique<voidParamASTnode>(t->CurTok);
-      else if (isVarType()) {
+      if (t->CurTok.type == VOID_TOK) {
+        p = llvm::make_unique<voidParamASTnode>(t->CurTok);
+        if (t->getNextToken().type != RPAR) exceptionString(t->CurTok, {")"});
+        t->getNextToken();
+      } else if (isVarType()) {
       //create param list
         std::list <std::unique_ptr<paramASTnode>> params = {};
         while (isVarType()) {
@@ -112,6 +106,9 @@
         }
         p = llvm::make_unique<paramListASTnode>(std::move(params));
       } else exceptionString(t->CurTok, {"int","float","bool","void", ")"});
+    } else {
+      p = std::unique_ptr<paramsASTnode>(nullptr);
+      t->getNextToken();
     }
     return std::move(p);
   }
@@ -149,7 +146,9 @@
     if (t->CurTok.type == INT_LIT) return parseInt();
     else if (t->CurTok.type == FLOAT_LIT) return parseFloat();
     else if (t->CurTok.type == BOOL_LIT) return parseBool();
-    else if (t->CurTok.type == IDENT) {
+    else if (t->CurTok.type == LPAR) return parseSubExpr();
+    else {
+      if (t->CurTok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
       TOKEN n = t->CurTok;
       if (t->getNextToken().type == LPAR) {
         std::list<std::unique_ptr<exprASTnode>> args = {};
@@ -162,7 +161,6 @@
         return llvm::make_unique<funcCallASTnode>(n, n.lexeme, std::move(args));
       } else return llvm::make_unique<IdentASTnode>(n, n.lexeme);
     }
-    else if (t->CurTok.type == LPAR) return parseSubExpr();
   }
 
   std::unique_ptr<negValASTnode> parser::parseNeg() {
@@ -190,7 +188,11 @@
     if ((t->CurTok.type != IDENT) && (t->CurTok.type != LPAR) && !(isVal()) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT)) exceptionString(t->CurTok, {"(","!","-","an identifier","a literal value"});
     std::unique_ptr<negValASTnode> l = parseNeg();
     std::list<std::unique_ptr<negValASTnode>> r = {};
-    while (t->CurTok.type == MOD) r.push_back(parseNeg());
+    //if (t->lineNo > 16) exceptionString(t->CurTok, {"test"});
+    while (t->CurTok.type == MOD) {
+      t->getNextToken();
+      r.push_back(parseNeg());
+    }
     return llvm::make_unique<modValASTnode>(std::move(l), std::move(r));
   }
 
@@ -320,8 +322,10 @@
 
   std::unique_ptr<whileStmtASTnode> parser::parseWhile() {
     if (t->getNextToken().type != LPAR) exceptionString(t->CurTok, {"("});
+    t->getNextToken();
     std::unique_ptr<exprASTnode> expr = parseExpr();
-    if (t->getNextToken().type != RPAR) exceptionString(t->CurTok, {")"});
+    if (t->CurTok.type != RPAR) exceptionString(t->CurTok, {")"});
+    t->getNextToken();
     std::unique_ptr<stmtASTnode> stmt = parseStatment();
     return llvm::make_unique<whileStmtASTnode>(std::move(expr), std::move(stmt));
   }
@@ -329,7 +333,10 @@
   std::unique_ptr<returnStmtASTnode> parser::parseReturn() {
     t->getNextToken();
     if ((t->CurTok.type != LBRA) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT) && !(isVal())) exceptionString(t->CurTok, {";","(","!","-","an identifier","a literal value"});
-    if (t->CurTok.type == SC) return std::unique_ptr<returnStmtASTnode>(nullptr);
+    if (t->CurTok.type == SC) {
+      t->getNextToken();
+      return std::unique_ptr<returnStmtASTnode>(nullptr);
+    }
     else {
       std::unique_ptr<exprASTnode> e = parseExpr();
       if (t->CurTok.type != SC) exceptionString(t->CurTok, {";"});
@@ -382,6 +389,7 @@
     TOKEN tok = t->getNextToken();
     std::string name = tok.lexeme;
     if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
+    t->getNextToken();
     return parseFuncDecl(tok, type, name);
   }
 
