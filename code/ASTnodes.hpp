@@ -2,7 +2,27 @@
 #define ASTNODES_HPP
 
 
-
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 #include <string.h>
 #include <string>
 #include <list>
@@ -13,6 +33,17 @@
 
 #include "token.hpp"
 
+
+class Scope {
+public:
+  Scope *parentScope;
+  std::map<std::string, llvm::AllocaInst*> Values;
+  Scope(Scope *par) : parentScope(par) {}
+  void createNewLocal(std::string name, llvm::Type *type);
+  bool assignLocal(std::string name, llvm::Value *val);
+  llvm::Value *getLocal(std::string name);
+};
+
 //===----------------------------------------------------------------------===//
 // AST nodes
 //===----------------------------------------------------------------------===//
@@ -21,7 +52,7 @@
 class ASTnode {
 public:
   virtual ~ASTnode() {}
-  //virtual Value *codegen() = 0;
+  //virtual llvm::Value *codegen() = 0;
   virtual std::string to_string() const { return ""; };
 };
 
@@ -35,7 +66,7 @@ class stmtASTnode : public ASTnode {
   public : std::string stmtType;
 public:
   stmtASTnode(std::string st) : stmtType(st) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() = 0;
 
 };
 
@@ -43,7 +74,7 @@ class baseValASTnode : public ASTnode {
   std::string Type;
 public:
   baseValASTnode(std::string type) : Type(type) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() = 0;
 };
 
 class negValASTnode : public ASTnode {
@@ -52,7 +83,7 @@ class negValASTnode : public ASTnode {
   std::unique_ptr<baseValASTnode> Val;
 public:
   negValASTnode(TOKEN tok, int tokCount, std::unique_ptr<baseValASTnode> val) : Tok(tok), TokCount(tokCount), Val(std::move(val)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     if (TokCount == 0) return "negVal : " + Val->to_string();
     else {
@@ -68,7 +99,7 @@ class modValASTnode : public ASTnode {
   std::list<std::unique_ptr<negValASTnode>> right;
 public:
   modValASTnode(std::unique_ptr<negValASTnode> l, std::list<std::unique_ptr<negValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "modVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -81,7 +112,7 @@ class divValASTnode : public ASTnode {
   std::list<std::unique_ptr<modValASTnode>> right;
 public:
   divValASTnode(std::unique_ptr<modValASTnode> l, std::list<std::unique_ptr<modValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "divVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -94,7 +125,7 @@ class mulValASTnode : public ASTnode {
   std::list<std::unique_ptr<divValASTnode>> right;
 public:
   mulValASTnode(std::unique_ptr<divValASTnode> l, std::list<std::unique_ptr<divValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "mulVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -107,7 +138,7 @@ class addValASTnode : public ASTnode {
   std::list<std::unique_ptr<mulValASTnode>> right;
 public:
   addValASTnode(std::unique_ptr<mulValASTnode> l, std::list<std::unique_ptr<mulValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "addVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -120,7 +151,7 @@ class subValASTnode : public ASTnode {
   std::list<std::unique_ptr<addValASTnode>> right;
 public:
   subValASTnode(std::unique_ptr<addValASTnode> l, std::list<std::unique_ptr<addValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "subVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -133,7 +164,7 @@ class ineqValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<subValASTnode>>> right;
 public:
   ineqValASTnode(std::unique_ptr<subValASTnode> l, std::list<std::tuple<TOKEN, std::unique_ptr<subValASTnode>>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "ineqVal : (" + left->to_string() + ")";
     for (auto& i : right)  ret += std::get<0>(i).lexeme + " (" + std::get<1>(i)->to_string() + ")";
@@ -146,7 +177,7 @@ class eqValASTnode : public ASTnode {
   std::list<std::tuple<TOKEN, std::unique_ptr<ineqValASTnode>>> right;
 public:
   eqValASTnode(std::unique_ptr<ineqValASTnode> l, std::list<std::tuple<TOKEN, std::unique_ptr<ineqValASTnode>>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "eqVal : (" + left->to_string() + ")";
     for (auto& i : right)  ret += std::get<0>(i).lexeme + " (" + std::get<1>(i)->to_string() + ")";
@@ -159,7 +190,7 @@ class andValASTnode : public ASTnode {
   std::list<std::unique_ptr<eqValASTnode>> right;
 public:
   andValASTnode(std::unique_ptr<eqValASTnode> l, std::list<std::unique_ptr<eqValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "andVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -172,7 +203,7 @@ class orValASTnode : public ASTnode {
   std::list<std::unique_ptr<andValASTnode>> right;
 public:
   orValASTnode(std::unique_ptr<andValASTnode> l, std::list<std::unique_ptr<andValASTnode>> r) : left(std::move(l)), right(std::move(r)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "orVal : (" + left->to_string() + ")";
     for (auto&& i : right)  ret += " (" + i->to_string() + ")";
@@ -186,31 +217,33 @@ class declASTnode : public ASTnode {
   public : std::string Name;
 public:
   declASTnode(TOKEN tok, std::string type, std::string name) : Tok(tok), Type(type), Name(name){}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() = 0;
   virtual std::string to_string() const override {
     return "decleration : " + Type + Name;
   }
 };
 
 class varDeclASTnode : public declASTnode {
+  bool Global;
 public:
-  varDeclASTnode(TOKEN tok, std::string type, std::string name) : declASTnode(tok, type, name) {}
-  //virtual Value *codegen() override;
+  varDeclASTnode(TOKEN tok, std::string type, std::string name, bool global) : Global(global), declASTnode(tok, type, name) {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
-    return "decleration : " + Type + Name;
+    if (Global) return "global variable decleration : " + Type + Name;
+    else return "variable decleration : " + Type + Name;
   }
 };
 
 class blockASTnode : public stmtASTnode {
   std::list<std::unique_ptr<varDeclASTnode>> localDecls;
-  std::list<std::unique_ptr<stmtASTnode>> statments;
+  std::list<std::unique_ptr<stmtASTnode>> statements;
 public:
-  blockASTnode(std::list<std::unique_ptr<varDeclASTnode>> locals, std::list<std::unique_ptr<stmtASTnode>> stmts) : localDecls(std::move(locals)), statments(std::move(stmts)), stmtASTnode("block") {}
-  //virtual Value *codegen() override;
+  blockASTnode(std::list<std::unique_ptr<varDeclASTnode>> locals, std::list<std::unique_ptr<stmtASTnode>> stmts) : localDecls(std::move(locals)), statements(std::move(stmts)), stmtASTnode("block") {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     std::string ret = "block : ";
     for (auto&& i : localDecls)  ret += " (" + i->to_string() + ")";
-    for (auto&& j : statments) if (j != nullptr) ret += " (" + j->to_string() + ")";
+    for (auto&& j : statements) if (j != nullptr) ret += " (" + j->to_string() + ")";
     return ret;
   }
 };
@@ -223,7 +256,7 @@ class IntASTnode : public baseValASTnode {
 
 public:
   IntASTnode(TOKEN tok, int val) : Val(val), Tok(tok), baseValASTnode("int") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     return "int : " + Tok.lexeme;
   }
@@ -236,7 +269,7 @@ class FloatASTnode : public baseValASTnode {
 
 public:
   FloatASTnode(TOKEN tok, float val) : Val(val), Tok(tok), baseValASTnode("float") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     return "float : " + Tok.lexeme;
   }
@@ -248,7 +281,7 @@ class BoolASTnode : public baseValASTnode {
   std::string Name;
 public:
   BoolASTnode(TOKEN tok, bool val) : Val(val), Tok(tok), baseValASTnode("bool") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     return "bool : " + Tok.lexeme;
   }
@@ -259,7 +292,7 @@ class IdentASTnode : public baseValASTnode {
   std::string Name;
 public:
   IdentASTnode(TOKEN tok, std::string name) : Tok(tok), Name(name), baseValASTnode("ident") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     return "variable identifier : " + Name;
   }
@@ -272,7 +305,7 @@ class exprASTnode : public stmtASTnode {
   std::unique_ptr<orValASTnode> Vals;
 public:
   exprASTnode(std::list<std::string> names, std::unique_ptr<orValASTnode> vals) : Names(std::move(names)), Vals(std::move(vals)), stmtASTnode("expr") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     std::string ret = "expression : ";
     for (auto&& i : Names)  ret += i + " = ";
@@ -282,12 +315,12 @@ public:
 };
 
 class subExprASTnode : public baseValASTnode {
-  std::unique_ptr<exprASTnode> expresion;
+  std::unique_ptr<exprASTnode> expression;
 public:
-  subExprASTnode(std::unique_ptr<exprASTnode> expr) : expresion(std::move(expr)), baseValASTnode("subExpr") {}
-  //virtual Value *codegen() override;
+  subExprASTnode(std::unique_ptr<exprASTnode> expr) : expression(std::move(expr)), baseValASTnode("subExpr") {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
-    return "sub expression : (" + expresion->to_string() + ")";
+    return "sub expression : (" + expression->to_string() + ")";
   }
 };
 
@@ -297,7 +330,7 @@ class funcCallASTnode : public baseValASTnode {
   std::list<std::unique_ptr<exprASTnode>> arguments;
 public:
   funcCallASTnode(TOKEN tok, std::string name, std::list<std::unique_ptr<exprASTnode>> args) : Tok(tok), Name(name), arguments(std::move(args)), baseValASTnode("func") {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     std::string ret = "function call : " + Name + " (";
     for (auto&& i : arguments)  ret += i->to_string() + ", ";
@@ -307,48 +340,49 @@ public:
 };
 
 class ifStmtASTnode : public stmtASTnode {
-  std::unique_ptr<exprASTnode> Expresion;
+  std::unique_ptr<exprASTnode> Expression;
   std::unique_ptr<blockASTnode> Block;
   std::unique_ptr<blockASTnode> Els;
 public:
-  ifStmtASTnode(std::unique_ptr<exprASTnode> expr, std::unique_ptr<blockASTnode> block, std::unique_ptr<blockASTnode> els) : Expresion(std::move(expr)), Block(std::move(block)), Els(std::move(els)), stmtASTnode("if") {}
-  //virtual Value *codegen() override;
+  ifStmtASTnode(std::unique_ptr<exprASTnode> expr, std::unique_ptr<blockASTnode> block, std::unique_ptr<blockASTnode> els) : Expression(std::move(expr)), Block(std::move(block)), Els(std::move(els)), stmtASTnode("if") {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
-    if (Els == nullptr) return "if statment : (" + Expresion->to_string() + ") (" + Block->to_string() + ")";
-    else return "if statment : (" + Expresion->to_string() + ") (" + Block->to_string() + ") (" + Els->to_string() + ")";
+    if (Els == nullptr) return "if statment : (" + Expression->to_string() + ") (" + Block->to_string() + ")";
+    else return "if statment : (" + Expression->to_string() + ") (" + Block->to_string() + ") (" + Els->to_string() + ")";
   }
 };
 
 class whileStmtASTnode : public stmtASTnode {
-  std::unique_ptr<exprASTnode> Expresion;
-  std::unique_ptr<stmtASTnode> Statment;
+  std::unique_ptr<exprASTnode> Expression;
+  std::unique_ptr<stmtASTnode> Statement;
 public:
-  whileStmtASTnode(std::unique_ptr<exprASTnode> expr, std::unique_ptr<stmtASTnode> stmt) : Expresion(std::move(expr)), Statment(std::move(stmt)), stmtASTnode("while") {}
-  //virtual Value *codegen() override;
+  whileStmtASTnode(std::unique_ptr<exprASTnode> expr, std::unique_ptr<stmtASTnode> stmt) : Expression(std::move(expr)), Statement(std::move(stmt)), stmtASTnode("while") {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
-    return "while statment : (" + Expresion->to_string() + ") (" + Statment->to_string() + ")";
+    if (Statement != nullptr) return "while statement : (" + Expression->to_string() + ") (" + Statement->to_string() + ")";
+    else return "while statement : (" + Expression->to_string() + ")";
   }
 };
 
 class returnStmtASTnode : public stmtASTnode {
-  std::unique_ptr<exprASTnode> Expresion;
+  std::unique_ptr<exprASTnode> Expression;
 public:
-  returnStmtASTnode(std::unique_ptr<exprASTnode> expr) : Expresion(std::move(expr)), stmtASTnode("return") {}
-  //virtual Value *codegen() override;
+  returnStmtASTnode(std::unique_ptr<exprASTnode> expr) : Expression(std::move(expr)), stmtASTnode("return") {}
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
-    if (Expresion == nullptr) return "return statment";
-    else return "return statment : (" + Expresion->to_string() + ")";
+    if (Expression == nullptr) return "return statment";
+    else return "return statment : (" + Expression->to_string() + ")";
   }
 };
 
 
 class paramASTnode : public ASTnode {
   TOKEN Tok;
-  std::string Type;
+  public : std::string Type;
   std::string Name;
 public:
   paramASTnode(TOKEN tok, std::string type, std::string name) : Tok(tok), Type(type), Name(name) {}
-  //virtual Value *codegen() override;
+  //virtual llvm::Value *codegen() override = 0;
   virtual std::string to_string() const override {
     return "param : " + Type + Name;
   }
@@ -358,9 +392,12 @@ class paramsASTnode : public ASTnode {
   public : std::string Type;
 public:
   paramsASTnode(std::string type) : Type(type) {}
-  //virtual Value *codegen() override;
+  //virtual llvm::Value *codegen() override = 0;
   virtual std::string to_string() const override {
     return "params : " + Type;
+  }
+  virtual std::list <std::unique_ptr<paramASTnode>> getList() {
+    return {};
   }
 };
 
@@ -368,12 +405,15 @@ class paramListASTnode : public paramsASTnode {
   std::list <std::unique_ptr<paramASTnode>> paramaters;
 public:
   paramListASTnode(std::list <std::unique_ptr<paramASTnode>> l) : paramaters(std::move(l)), paramsASTnode("list") {}
-  //virtual Value *codegen() override;
+  //virtual llvm::Value *codegen() override = 0;
   virtual std::string to_string() const override {
     std::string ret = "paramList : (";
     for (auto&& i : paramaters)  ret += i->to_string() + ", ";
     ret += ")";
     return ret;
+  }
+  virtual std::list <std::unique_ptr<paramASTnode>> getList() override {
+    return std::move(paramaters);
   }
 };
 
@@ -381,7 +421,7 @@ class voidParamASTnode : public paramsASTnode {
   TOKEN Tok;
 public:
   voidParamASTnode(TOKEN tok) : Tok(tok), paramsASTnode("void"){}
-  //virtual Value *codegen() override;
+  //virtual llvm::Value *codegen() override = 0;
   virtual std::string to_string() const override {
     return "void param";
   }
@@ -394,7 +434,7 @@ class externASTnode : public ASTnode {
   std::unique_ptr<paramsASTnode> paramaters;
 public:
   externASTnode(TOKEN tok, std::string type, std::string name, std::unique_ptr<paramsASTnode> param) : Tok(tok), Type(type), Name(name), paramaters(std::move(param)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     if (paramaters == nullptr) "extern : " + Type + " " + Name;
     return "extern : " + Type + " " + Name + " " + paramaters->to_string();
@@ -406,7 +446,7 @@ class funcDeclASTnode : public declASTnode {
   std::unique_ptr<blockASTnode> Block;
 public:
   funcDeclASTnode(TOKEN tok, std::string type, std::string name, std::unique_ptr<paramsASTnode> param, std::unique_ptr<blockASTnode> block) : Paramaters(std::move(param)), Block(std::move(block)), declASTnode(tok, type, name) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     if (Paramaters == nullptr) return "function decleration : (" + Block->to_string() + ")";
     else return "function decleration : (" + Paramaters->to_string() + ") (" + Block->to_string() + ")";
@@ -418,7 +458,7 @@ class ProgramASTnode : public ASTnode {
   std::list <std::unique_ptr<declASTnode>> declerations;
 public:
   ProgramASTnode(std::list <std::unique_ptr<externASTnode>> externs, std::list <std::unique_ptr<declASTnode>> decls) : externals(std::move(externs)), declerations(std::move(decls)) {}
-  //virtual Value *codegen() override;
+  virtual llvm::Value *codegen();
   virtual std::string to_string() const override {
     std::string ret = "Program : ";
     for (auto&& e : externals)  ret += "(" + e->to_string() + ")";

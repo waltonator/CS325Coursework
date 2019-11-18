@@ -40,7 +40,7 @@ using namespace llvm;
 using namespace llvm::sys;
 
 parser* par;
-
+std::unique_ptr<ProgramASTnode> program;
 //===----------------------------------------------------------------------===//
 // Recursive Descent Parser - Function call for each production
 //===----------------------------------------------------------------------===//
@@ -49,7 +49,7 @@ parser* par;
 
 
 static void parse() {
-  std::unique_ptr<ProgramASTnode> program = par->prog();
+  program = par->prog();
   llvm::outs() << program->to_string() <<"\n";
   // add body
 }

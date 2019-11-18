@@ -131,7 +131,7 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     std::string name = tok.lexeme;
     if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
     if (t->getNextToken().type != SC) exceptionString(t->CurTok, {";"});
-    return llvm::make_unique<varDeclASTnode>(tok, type, name);
+    return llvm::make_unique<varDeclASTnode>(tok, type, name, false);
   }
 
   std::unique_ptr<subExprASTnode> parser::parseSubExpr() {
@@ -350,7 +350,7 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     else if (t->CurTok.type == IF) return parseIf();
     else if (t->CurTok.type == WHILE) return parseWhile();
     else if (t->CurTok.type == RETURN) return parseReturn();
-    else if (t->CurTok.type == SC) return llvm::make_unique<stmtASTnode>("empty");
+    else if (t->CurTok.type == SC) return nullptr;
     else {
       std::unique_ptr<exprASTnode> e = parseExpr();
       if (t->CurTok.type != SC) exceptionString(t->CurTok, {";"});
@@ -403,7 +403,7 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
       if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
       t->getNextToken();
       if ((t->CurTok.type != SC) && (t->CurTok.type != LPAR)) exceptionString(t->CurTok, {";","("});
-      if (t->CurTok.type == SC) return llvm::make_unique<varDeclASTnode>(tok, type, name);
+      if (t->CurTok.type == SC) return llvm::make_unique<varDeclASTnode>(tok, type, name, true);
       else return parseFuncDecl(tok, type, name);
     }
   }
