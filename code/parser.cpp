@@ -365,13 +365,13 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     t->getNextToken();
     if ((t->CurTok.type != RBRA) && !(isVarType()) && (t->CurTok.type != RETURN) && (t->CurTok.type != LBRA) && (t->CurTok.type != WHILE) && (t->CurTok.type != IF) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != LPAR) && !(isVal()) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT)) exceptionString(t->CurTok, {";","{","}","int","float","bool","return","(","while","if","!","-","an identifier","a literal value"});
     while (isVarType()){
-      locals.push_front(parseLocal());
+      locals.push_back(parseLocal());
       t->getNextToken();
     }
     if ((t->CurTok.type != RBRA) && (t->CurTok.type != RETURN) && (t->CurTok.type != LBRA) && (t->CurTok.type != WHILE) && (t->CurTok.type != IF) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != LPAR) && !(isVal()) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT)) exceptionString(t->CurTok, {";","{","}","return","(","while","if","!","-","an identifier","a literal value"});
     std::list <std::unique_ptr<stmtASTnode>> stmts = {};
     while (((t->CurTok.type == RETURN) || (t->CurTok.type == LBRA) || (t->CurTok.type == WHILE) || (t->CurTok.type == IF) || (t->CurTok.type == SC) || (t->CurTok.type == IDENT) || (t->CurTok.type == LPAR) || !(isVal()) || (t->CurTok.type == MINUS) || (t->CurTok.type == NOT)) && (t->CurTok.type != RBRA)){
-      stmts.push_front(parseStatment());
+      stmts.push_back(parseStatment());
     }
     if (t->CurTok.type != RBRA) exceptionString(t->CurTok, {";","{","}","return","(","while","if","!","-","an identifier","a literal value"});
     t->getNextToken();
@@ -413,13 +413,13 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     if (t->CurTok.type != EXTERN && !(isVarType()) && t->CurTok.type != VOID_TOK) exceptionString(t->CurTok, {"extern","int","float","bool","void"});
     std::list <std::unique_ptr<externASTnode>> externs = {};
     while (t->CurTok.type == EXTERN) {
-      externs.push_front(parseExtern());
+      externs.push_back(parseExtern());
       t->getNextToken();
     }
     if (!(isVarType()) && t->CurTok.type != VOID_TOK) exceptionString(t->CurTok, {"int","float","bool","void"});
     std::list <std::unique_ptr<declASTnode>> decls = {};
     while (t->CurTok.type == VOID_TOK || isVarType()) {
-      decls.push_front(parseDecl());
+      decls.push_back(parseDecl());
       t->getNextToken();
     }
     return llvm::make_unique<ProgramASTnode>(std::move(externs), std::move(decls));

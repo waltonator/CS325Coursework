@@ -5,7 +5,6 @@ int addition(int n, int m){
 	int result;
 	result = n + m;
 
-
   if(n == 4) {
     print_int(n+m);
   }

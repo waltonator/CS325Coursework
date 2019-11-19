@@ -3,6 +3,8 @@
 
 extern int print_int(int X);
 
+int test;
+
 int fibonacci(int n)
 {
   int first;
@@ -13,7 +15,7 @@ int fibonacci(int n)
 
   print_int(n);
   first = 0;
-  second = 1;  
+  second = 1;
   c = 1;
   total = 0;
 
@@ -25,11 +27,11 @@ int fibonacci(int n)
       next = first + second;
       first = second;
       second = next;
-    }    
-    print_int(next);    
+    }
+    print_int(next);
     c = c + 1;
     total = total + next;
   }
-  print_int(total); 
+  print_int(total);
   return total;
 }

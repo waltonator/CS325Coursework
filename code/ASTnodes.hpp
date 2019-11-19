@@ -33,13 +33,18 @@
 
 #include "token.hpp"
 
+extern llvm::LLVMContext TheContext;
+extern llvm::IRBuilder<> Builder;
+extern std::unique_ptr<llvm::Module> TheModule;
+extern std::map<std::string, llvm::Value*> GlobalNamedValues;
+extern std::list<std::string> funcNames;
 
 class Scope {
 public:
   Scope *parentScope;
   std::map<std::string, llvm::AllocaInst*> Values;
   Scope(Scope *par) : parentScope(par) {}
-  void createNewLocal(std::string name, llvm::Type *type);
+  void createNewLocal(llvm::Function *TheFunction, const std::string &name, llvm::Type *type);
   bool assignLocal(std::string name, llvm::Value *val);
   llvm::Value *getLocal(std::string name);
 };
@@ -230,7 +235,7 @@ public:
   virtual llvm::Value *codegen() override;
   virtual std::string to_string() const override {
     if (Global) return "global variable decleration : " + Type + Name;
-    else return "variable decleration : " + Type + Name;
+    else return "variable decleration : " + Type + " " + Name;
   }
 };
 

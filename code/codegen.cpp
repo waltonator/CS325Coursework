@@ -1,16 +1,26 @@
 #include "ASTnodes.hpp"
 
-static llvm::LLVMContext TheContext;
-static llvm::IRBuilder<> Builder(TheContext);
-//static map<std::string, AllocaInst*> NamedValues;
-static std::map<std::string, llvm::Value*> GlobalNamedValues;
-//static std::map<std::string, Scope*> scopes;
-static std::unique_ptr<llvm::Module> TheModule;
+llvm::LLVMContext TheContext;
+llvm::IRBuilder<> Builder(TheContext);
+std::unique_ptr<llvm::Module> TheModule = llvm::make_unique<llvm::Module>("mini-c", TheContext);
+// static llvm::LLVMContext TheContext;
+// static llvm::IRBuilder<> Builder(TheContext);
+// static std::unique_ptr<llvm::Module> TheModule = llvm::make_unique<llvm::Module>("mini-c", TheContext);
+std::map<std::string, llvm::Value*> GlobalNamedValues;
+std::list<std::string> funcNames = {};
+
 static Scope* currentScope;
+
 static bool newFunc = false;
+
+bool funcExsists(std::string name){
+  for (std::string i : funcNames) if (name == i) return true;
+  return false;
+}
 
 llvm::Value *LogErrorV(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);
+  exit(1);
   return nullptr;
 }
 
@@ -37,47 +47,65 @@ llvm::Type* checkNumType(llvm::Value *l, llvm::Value *r) {
   }
 }
 
+llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, const std::string &VarName, llvm::Type* t) {
+  if (TheFunction == nullptr) {
+    return Builder.CreateAlloca(t, 0, VarName.c_str());
+  }
+  llvm::IRBuilder<> TmpB = llvm::IRBuilder<>(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
+  return TmpB.CreateAlloca(t, 0, VarName.c_str());
+}
+
+
 llvm::Value *applyType(llvm::Value *v, llvm::Type* t){
-  if (v->getType() == t) return v;
-  else if (v->getType()->isIntegerTy() && t->isFloatTy()) return Builder.CreateSIToFP(v, llvm::Type::getFloatTy(TheContext));
-  else if (v->getType()->isIntegerTy(1) && t->isIntegerTy(32)) return Builder.CreateIntCast(v, llvm::Type::getInt32Ty(TheContext), true);
-  else if (v->getType()->isFloatTy() && t->isIntegerTy(32)) return Builder.CreateFPToSI(v, llvm::Type::getInt32Ty(TheContext));
-  else if (v->getType()->isFloatTy() && t->isIntegerTy(1)) return Builder.CreateFPToSI(v, llvm::Type::getInt1Ty(TheContext));
-  else return nullptr;
+  llvm::Type *vt = v->getType();
+  if (vt == t) return v;
+  else if (vt->isIntegerTy() && t->isFloatTy()) return Builder.CreateSIToFP(v, t);
+  else if (vt->isIntegerTy(1) && t->isIntegerTy(32)) return Builder.CreateIntCast(v, t, true);
+  else if (vt->isFloatTy() && t->isIntegerTy(32)) return Builder.CreateFPToSI(v, t);
+  else if (vt->isIntegerTy(32) && t->isIntegerTy(1)) return Builder.CreateIntCast(v, t, true);
+  else if (vt->isFloatTy() && t->isIntegerTy(1)) return Builder.CreateFPToSI(v, t);
+  else return LogErrorV("type cast didn't work");
 }
 
-static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, const std::string &VarName, llvm::Type *type) {
-  llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
-  return TmpB.CreateAlloca(type, nullptr, VarName);
-}
-
-void Scope::createNewLocal(std::string name, llvm::Type *type) {
-  auto *check = Values[name];
-  if (!check) {
-    llvm::AllocaInst* out = CreateEntryBlockAlloca(Builder.GetInsertBlock()->getParent(), name, type);
+void Scope::createNewLocal(llvm::Function *TheFunction, const std::string &name, llvm::Type *type) {
+  if (Values.find(name) == Values.end()) {
+    //llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(),TheFunction->getEntryBlock().begin());
+    llvm::AllocaInst *out = CreateEntryBlockAlloca(TheFunction, name, type); //TmpB.CreateAlloca(type, nullptr, name);
     llvm::Value *val;
+    //LogErrorV("test");
+    std::cout<<name<<" storing new "<<out<<std::endl;
     if (type == llvm::Type::getInt32Ty(TheContext)) val = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
     else if (type == llvm::Type::getFloatTy(TheContext)) val = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.0));
     else if (type == llvm::Type::getInt1Ty(TheContext)) val = 0 ? llvm::ConstantInt::get(TheContext, llvm::APInt(1, 1)) : llvm::ConstantInt::get(TheContext, llvm::APInt());
     Builder.CreateStore(val, out);
     Values[name] = out;
+  } else
+  {
+    LogErrorV("Cannot redefine variables");
   }
 }
 
 bool Scope::assignLocal(std::string name, llvm::Value *val) {
-  llvm::Value *check = Values[name];
-  if (check) {
-    val = applyType(val, check->getType());
+  if (Values.find(name) != Values.end()) {
+    //AllocaInst *Alloca = CreateEntryBlockAlloca(nullptr, VarName);
+    llvm::Value *check = Values[name];
+    val = applyType(val, check->getType()->getPointerElementType());
+    std::cout<<name<<" store "<<val<<" in "<<check<<std::endl;
     Builder.CreateStore(val, check);
     //Values[name] = val;
+    std::cout<<" store suc"<<std::endl;
     return true;
   } else if (parentScope != nullptr) return parentScope->assignLocal(name, val);
   else return false;
 }
 
 llvm::Value *Scope::getLocal(std::string name) {
+  std::cout<<"values is size "<<Values.size()<<std::endl;
+  std::cout<<name<<" "<<Values[name]<<std::endl;
   llvm::Value *check = Values[name];
   if (check) {
+    llvm::Value *check = Values[name];
+    std::cout<<name<<" get "<<check<<std::endl;
     return Builder.CreateLoad(check, name.c_str());
   }
   else if (parentScope != nullptr) {
@@ -105,7 +133,7 @@ llvm::Value *modValASTnode::codegen() {
       llvm::Value *r = i->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (t->isIntegerTy()) l = Builder.CreateSRem(l, r);
       else if (t->isFloatTy()) l = Builder.CreateFRem(l, r);
       else LogErrorV("Expected int or float");
@@ -122,7 +150,7 @@ llvm::Value *divValASTnode::codegen() {
       llvm::Value *r = i->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (t->isIntegerTy()) l = Builder.CreateSDiv(l, r);
       else if (t->isFloatTy()) l = Builder.CreateFDiv(l, r);
       else LogErrorV("Expected int or float");
@@ -139,7 +167,7 @@ llvm::Value *mulValASTnode::codegen() {
       llvm::Value *r = i->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (t->isIntegerTy()) l = Builder.CreateMul(l, r);
       else if (t->isFloatTy()) l = Builder.CreateFMul(l, r);
       else LogErrorV("Expected int or float");
@@ -156,7 +184,7 @@ llvm::Value *addValASTnode::codegen() {
       llvm::Value *r = i->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (t->isIntegerTy()) l = Builder.CreateAdd(l, r);
       else if (t->isFloatTy()) l = Builder.CreateFAdd(l, r);
       else LogErrorV("Expected int or float");
@@ -173,7 +201,7 @@ llvm::Value *subValASTnode::codegen(){
       llvm::Value *r = i->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (t->isIntegerTy()) l = Builder.CreateSub(l, r);
       else if (t->isFloatTy()) l = Builder.CreateFSub(l, r);
       else LogErrorV("Expected int or float");
@@ -190,7 +218,7 @@ llvm::Value *ineqValASTnode::codegen(){
       llvm::Value *r = std::get<1>(i)->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (std::get<0>(i).type == LT) {
         if (t->isIntegerTy()) l = Builder.CreateICmpSLT(l, r);
         else if (t->isFloatTy()) l = Builder.CreateFCmpULT(l, r);
@@ -218,7 +246,7 @@ llvm::Value *eqValASTnode::codegen(){
       llvm::Value *r = std::get<1>(i)->codegen();
       llvm::Type* t = checkNumType(l, r);
       l = applyType(l, t);
-      r = applyType(l, t);
+      r = applyType(r, t);
       if (std::get<0>(i).type == EQ) {
         if (t->isIntegerTy()) l = Builder.CreateICmpEQ(l, r);
         else if (t->isFloatTy()) l = Builder.CreateFCmpOEQ(l, r);
@@ -228,6 +256,7 @@ llvm::Value *eqValASTnode::codegen(){
       }
       else LogErrorV("Expected int or float");
     }
+    std::cout<<" returning "<<l<<std::endl;
     return l;
   }
 }
@@ -262,37 +291,45 @@ llvm::Value *orValASTnode::codegen(){
 
 llvm::Value *varDeclASTnode::codegen(){
   if (Global) {
-    llvm::Value *val;
+    llvm::Constant *val;
+    std::cout << "test";
     llvm::Type *t = stringToType(Type);
     if (t == llvm::Type::getInt32Ty(TheContext)) val = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
     else if (t == llvm::Type::getFloatTy(TheContext)) val = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.0));
     else if (t == llvm::Type::getInt1Ty(TheContext)) val = 0 ? llvm::ConstantInt::get(TheContext, llvm::APInt(1, 1)) : llvm::ConstantInt::get(TheContext, llvm::APInt());
-    GlobalNamedValues[Name] = val;
-  }
-  else currentScope->createNewLocal(Name, stringToType(Type));
+    TheModule->getOrInsertGlobal(Name, t);
+    llvm::GlobalVariable *Var = TheModule->getGlobalVariable(Name);
+    Var->setInitializer(val);
+    GlobalNamedValues[Name] = Var;
+
+    //llvm::AllocaInst* out = CreateEntryBlockAlloca(Builder.GetInsertBlock()->getParent(), Name, t);
+    //Builder.CreateStore(val, out);
+    //GlobalNamedValues[Name] = val;
+  } else currentScope->createNewLocal(/*Builder.GetInsertBlock()->getParent()*/nullptr, Name, stringToType(Type));
   return nullptr;
 }
 
 llvm::Value *blockASTnode::codegen(){
-  llvm::BasicBlock *b = llvm::BasicBlock::Create(TheContext);
+  //llvm::BasicBlock *b = llvm::BasicBlock::Create(TheContext);
   Scope *s = currentScope;
   if (!newFunc) {
     Scope *n = new Scope(s);
     currentScope = n;
-  }
-  Builder.SetInsertPoint(b);
+  } else newFunc = false;
+  //Builder.SetInsertPoint(b);
   for (auto&& i : localDecls) {
     i->codegen();
   }
 
   for (auto&& j : statements) {
-    auto *cur = j->codegen();
+    if (j != nullptr) auto *cur = j->codegen();
     //b->getInstList().push_back(cur);
   }
   currentScope = s;
-  b = Builder.GetInsertBlock();
-  return b;
+  //b = Builder.GetInsertBlock();
+  //return b;
   //return Builder.CreateBr(b);
+  return nullptr;
 }
 
 llvm::Value *IntASTnode::codegen(){
@@ -308,23 +345,35 @@ llvm::Value *BoolASTnode::codegen(){
 }
 
 llvm::Value *IdentASTnode::codegen(){
+  std::cout<<Name<<" ident"<<std::endl;
   llvm::Value *V = currentScope->getLocal(Name);
-  if (!V) V = GlobalNamedValues[Name];
-  if (!V) return LogErrorV("Unknown variable name");
+  std::cout<<"getting "<<V<<std::endl;
+  if (!V) {
+    V = GlobalNamedValues[Name];
+    if (V) return Builder.CreateLoad(V, Name.c_str());
+    else return LogErrorV("Unknown variable name");
+  }
   else return V;
 }
 
 llvm::Value *exprASTnode::codegen(){
-  llvm::Value *E = Vals->codegen();
-  for (auto&& i : Names) {
-    bool suc = currentScope->assignLocal(i, E);
-    if (!suc) {
-      llvm::Value *V = GlobalNamedValues[i];
-      if (V) GlobalNamedValues[i] = E;
-      else LogErrorV("Unknown variable name");
+  if (Vals != nullptr){
+    llvm::Value *E = Vals->codegen();
+    for (auto&& i : Names) {
+      bool suc = currentScope->assignLocal(i, E);
+      if (!suc) {
+        std::cout<<i<<" get in expr"<<std::endl;
+        llvm::Value *V = GlobalNamedValues[i];
+        if (GlobalNamedValues.find(i) != GlobalNamedValues.end()) {
+          llvm::Value *V = GlobalNamedValues[i];
+          E = applyType(E, V->getType());
+          Builder.CreateStore(E, V);
+          GlobalNamedValues[i] = E;
+        } else return LogErrorV("Unknown variable name in expression");
+      }
     }
-  }
-  return E;
+    return E;
+  } else return nullptr;
 }
 
 llvm::Value *subExprASTnode::codegen(){
@@ -355,6 +404,9 @@ llvm::Value *ifStmtASTnode::codegen(){
   llvm::Value *b = Block->codegen();
   Builder.CreateBr(cbb);
   ibb = Builder.GetInsertBlock();
+  TheFunction->getBasicBlockList().push_back(ebb);
+
+  Builder.SetInsertPoint(ebb);
   llvm::Value *ElV;
   if (Els != nullptr) ElV = Els->codegen();
   Builder.CreateBr(cbb);
@@ -377,17 +429,19 @@ llvm::Value *whileStmtASTnode::codegen(){
   llvm::BasicBlock *first = llvm::BasicBlock::Create(TheContext, "whileFirst", TheFunction);
   llvm::BasicBlock *code = llvm::BasicBlock::Create(TheContext, "whileLoop");
   llvm::BasicBlock *end = llvm::BasicBlock::Create(TheContext, "whileEnd");
+
   Builder.SetInsertPoint(first);
   auto *l = Builder.CreateCondBr(e, code, end);
   first = Builder.GetInsertBlock();
+  TheFunction->getBasicBlockList().push_back(code);
 
-  code = Builder.GetInsertBlock();
-  llvm::Value *wl = Statement->codegen();
+  llvm::Value *wl;
+  if (Statement != nullptr) Statement->codegen();
   Builder.CreateBr(first);
+  code = Builder.GetInsertBlock();
 
   TheFunction->getBasicBlockList().push_back(end);
   Builder.SetInsertPoint(end);
-
 
   return nullptr;
 }
@@ -401,58 +455,64 @@ llvm::Value *returnStmtASTnode::codegen(){
 }
 
 llvm::Value *externASTnode::codegen(){
+  if (funcExsists(Name)) return LogErrorV("function already exsists");
   std::vector<llvm::Type *> argTypes = {};
   std::vector<std::string> names = {};
-  llvm::FunctionType *type;
-  if (paramaters->Type == "list") {
-    for (auto &par : paramaters->getList()){
-      argTypes.push_back(stringToType(par->Type));
-      names.push_back(par->Name);
+  if (paramaters != nullptr) {
+    if (paramaters->Type == "list") {
+      for (auto &par : paramaters->getList()){
+        argTypes.push_back(stringToType(par->Type));
+        names.push_back(par->Name);
+      }
     }
   }
-  llvm::FunctionType::get(stringToType(Type), argTypes, false);
+  llvm::FunctionType *type = llvm::FunctionType::get(stringToType(Type), argTypes, false);
   llvm::Function *f = llvm::Function::Create(type, llvm::Function::ExternalLinkage, Name, TheModule.get());
   unsigned Idx = 0;
   for (auto &arg : f->args()) arg.setName(names[Idx++]);
+  funcNames.push_back(Name);
   return f;
 }
 
 llvm::Value *funcDeclASTnode::codegen(){
-  llvm::Function *f = TheModule->getFunction(Name);
-  if (f) return LogErrorV("function already exsists");
-
+  if (funcExsists(Name)) return LogErrorV("function already exsists");
   std::vector<llvm::Type *> argTypes = {};
   std::vector<std::string> names = {};
-  llvm::FunctionType *type;
-  if (Paramaters->Type == "list") {
-    for (auto &par : Paramaters->getList()){
-      argTypes.push_back(stringToType(par->Type));
-      names.push_back(par->Name);
+  if (Paramaters != nullptr) {
+    if (Paramaters->Type == "list") {
+      for (auto &par : Paramaters->getList()){
+        argTypes.push_back(stringToType(par->Type));
+        names.push_back(par->Name);
+      }
     }
   }
-  llvm::FunctionType::get(stringToType(Type), argTypes, false);
+  llvm::FunctionType *type = llvm::FunctionType::get(stringToType(Type), argTypes, false);
   llvm::Function *nf = llvm::Function::Create(type, llvm::Function::ExternalLinkage, Name, TheModule.get());
-  nf = TheModule->getFunction(Name);
+  //return LogErrorV("test");
+  //nf = TheModule->getFunction(Name);
   unsigned Idx = 0;
   for (auto &arg : nf->args()) arg.setName(names[Idx++]);
-
   llvm::BasicBlock *b = llvm::BasicBlock::Create(TheContext, "funcBlock", nf);
   Builder.SetInsertPoint(b);
-  Scope *n = new Scope(nullptr);
-  currentScope = n;
+  currentScope = new Scope(nullptr);
   newFunc = true;
-  for (auto &arg: nf->args()){
-    currentScope->createNewLocal(arg.getName(), arg.getType());
+  for (auto &arg: nf->args())
+  {
+    std::string name = arg.getName();
+    llvm::Type *type = arg.getType();
+    llvm::AllocaInst *out = CreateEntryBlockAlloca(nf, name, type); //TmpB.CreateAlloca(type, nullptr, name);
+    //LogErrorV("test");
+    Builder.CreateStore(&arg, out);
+    std::cout<<name<<" arg stored "<<out<<std::endl;
+    currentScope->Values[name] = out;
+    //currentScope->createNewLocal(nf, arg.getName().str(), arg.getType());
   }
-  if (llvm::Value *ret = Block->codegen()) {
-    Builder.CreateRet(ret);
-    llvm::verifyFunction(*nf);
-    return nf;
-  } else {
-    nf->eraseFromParent();
-    return nullptr;
-  }
-
+  Block->codegen();
+  std::cout<<"Finishing func"<<std::endl;
+  llvm::verifyFunction(*nf);
+  funcNames.push_back(Name);
+  std::cout<<"Finished func"<<std::endl;
+  return nf;
 }
 
 llvm::Value *ProgramASTnode::codegen(){

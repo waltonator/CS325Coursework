@@ -59,9 +59,9 @@ static void parse() {
 // Code Generation
 //===----------------------------------------------------------------------===//
 
-static LLVMContext TheContext;
-static IRBuilder<> Builder(TheContext);
-static std::unique_ptr<Module> TheModule;
+// static LLVMContext TheContext;
+// static IRBuilder<> Builder(TheContext);
+// static std::unique_ptr<Module> TheModule;
 
 //===----------------------------------------------------------------------===//
 // AST Printer
@@ -107,6 +107,7 @@ int main(int argc, char **argv) {
   // Make the module, which holds all the code.
   TheModule = llvm::make_unique<Module>("mini-c", TheContext);
 
+
   // Run the parser now.
   parse();
   fprintf(stderr, "Parsing Finished\n");
@@ -122,7 +123,10 @@ int main(int argc, char **argv) {
     errs() << "Could not open file: " << EC.message();
     return 1;
   }
-  // TheModule->print(errs(), nullptr); // print IR to terminal
+
+  program->codegen();
+  TheModule->print(errs(), nullptr); // print IR to terminal
+
   TheModule->print(dest, nullptr);
   //********************* End printing final IR ****************************
 
