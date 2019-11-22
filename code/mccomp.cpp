@@ -41,11 +41,6 @@ using namespace llvm::sys;
 
 parser* par;
 std::unique_ptr<ProgramASTnode> program;
-//===----------------------------------------------------------------------===//
-// Recursive Descent Parser - Function call for each production
-//===----------------------------------------------------------------------===//
-
-/* Add function calls for each production */
 
 
 static void parse() {
@@ -53,15 +48,6 @@ static void parse() {
   llvm::outs() << program->to_string() <<"\n";
   // add body
 }
-
-
-//===----------------------------------------------------------------------===//
-// Code Generation
-//===----------------------------------------------------------------------===//
-
-// static LLVMContext TheContext;
-// static IRBuilder<> Builder(TheContext);
-// static std::unique_ptr<Module> TheModule;
 
 //===----------------------------------------------------------------------===//
 // AST Printer
@@ -97,21 +83,13 @@ int main(int argc, char **argv) {
 
   // get the first token
   par->t->getNextToken();
-  //while (CurTok.type != EOF_TOK) {
-    //fprintf(stderr, "Token: %s with type %d\n", CurTok.lexeme.c_str(),
-      //      CurTok.type);
-    //getNextToken();
-  //}
-  //fprintf(stderr, "Lexer Finished\n");
 
   // Make the module, which holds all the code.
   TheModule = llvm::make_unique<Module>("mini-c", TheContext);
 
-
   // Run the parser now.
   parse();
   fprintf(stderr, "Parsing Finished\n");
-
 
   //********************* Start printing final IR **************************
   // Print out all of the generated code into a file called output.ll

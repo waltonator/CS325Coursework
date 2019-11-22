@@ -11,7 +11,7 @@ float pi() {
   i = 2;
 
   while(i < 100) {
-    
+
     if(flag) {
       PI = PI + (4.0 / (i*(i+1)*(i+2)));
       //flag = false;

@@ -28,6 +28,7 @@
 
 #include "parser.hpp"
 
+//returns errors
 void parser::exceptionString (TOKEN tok, std::list<std::string> expected) {
   std::string ret = expected.back();
   expected.pop_back();
@@ -47,12 +48,19 @@ void parser::exceptionString (TOKEN tok, std::list<std::string> expected) {
   exit(1);
 }
 
+//returns true if current token is variable type
 bool parser::isVarType(){
   return (t->CurTok.type == INT_TOK || t->CurTok.type == FLOAT_TOK || t->CurTok.type == BOOL_TOK);
 }
+
+//returns true if current token is a value
 bool parser::isVal(){
   return (t->CurTok.type == INT_LIT || t->CurTok.type == FLOAT_LIT || t->CurTok.type == BOOL_LIT);
 }
+
+//===----------------------------------------------------------------------===//
+// Recursive Descent Parser - Function call for each production
+//===----------------------------------------------------------------------===//
 
 std::unique_ptr<IntASTnode> parser::parseInt() {
   std::stringstream val(t->CurTok.lexeme);
@@ -74,8 +82,8 @@ std::unique_ptr<FloatASTnode> parser::parseFloat() {
 
 std::unique_ptr<BoolASTnode> parser::parseBool() {
   std::stringstream val(t->CurTok.lexeme);
-  bool ival = false;
-  val >> ival;
+  bool ival;
+  val >> std::boolalpha >> ival;
   TOKEN tok = t->CurTok;
   t->getNextToken();
   return llvm::make_unique<BoolASTnode>(tok, ival);
@@ -335,7 +343,7 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     if ((t->CurTok.type != LBRA) && (t->CurTok.type != SC) && (t->CurTok.type != IDENT) && (t->CurTok.type != MINUS) && (t->CurTok.type != NOT) && !(isVal())) exceptionString(t->CurTok, {";","(","!","-","an identifier","a literal value"});
     if (t->CurTok.type == SC) {
       t->getNextToken();
-      return std::unique_ptr<returnStmtASTnode>(nullptr);
+      return llvm::make_unique<returnStmtASTnode>(nullptr);
     }
     else {
       std::unique_ptr<exprASTnode> e = parseExpr();
@@ -403,8 +411,12 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
       if (tok.type != IDENT) exceptionString(t->CurTok, {"an identifier"});
       t->getNextToken();
       if ((t->CurTok.type != SC) && (t->CurTok.type != LPAR)) exceptionString(t->CurTok, {";","("});
-      if (t->CurTok.type == SC) return llvm::make_unique<varDeclASTnode>(tok, type, name, true);
-      else return parseFuncDecl(tok, type, name);
+      if (t->CurTok.type == SC)
+      {
+        t->getNextToken();
+        return llvm::make_unique<varDeclASTnode>(tok, type, name, true);
+
+      } else return parseFuncDecl(tok, type, name);
     }
   }
 
@@ -418,9 +430,6 @@ std::unique_ptr<BoolASTnode> parser::parseBool() {
     }
     if (!(isVarType()) && t->CurTok.type != VOID_TOK) exceptionString(t->CurTok, {"int","float","bool","void"});
     std::list <std::unique_ptr<declASTnode>> decls = {};
-    while (t->CurTok.type == VOID_TOK || isVarType()) {
-      decls.push_back(parseDecl());
-      t->getNextToken();
-    }
+    while (t->CurTok.type == VOID_TOK || isVarType()) decls.push_back(parseDecl());
     return llvm::make_unique<ProgramASTnode>(std::move(externs), std::move(decls));
   }

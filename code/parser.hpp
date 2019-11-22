@@ -28,10 +28,9 @@
 #include <string.h>
 #include <string>
 
-//#include "token.hpp"
 #include "tokens.hpp"
-//#include "ASTnodes.hpp"
 
+//parser class is used to generate the parse tree
 class parser {
 public:
   tokens* t;

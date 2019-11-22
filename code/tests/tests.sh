@@ -41,7 +41,7 @@ $CLANG driver.cpp output.ll  -o add
 validate "./add"
 
 
-cd ../factorial 
+cd ../factorial
 pwd
 rm -rf output.ll fact
 "$COMP" ./factorial.c
@@ -72,7 +72,7 @@ validate "./while"
 cd ../void
 pwd
 rm -rf output.ll void
-"$COMP" ./void.c 
+"$COMP" ./void.c
 $CLANG driver.cpp output.ll -o void
 validate "./void"
 
